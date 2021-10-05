@@ -62,7 +62,7 @@ pub enum Token {
     #[token("_")]
     Underscore,
 
-    #[regex("[<+->!@#%&=*]*", priority = 3 )]
+    #[regex("[<+->!@#%&=*]*" )]
     Symbols,
 
     #[regex("[_a-zA-Z][_a-zA-Z0-9]*")]

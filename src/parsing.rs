@@ -6,7 +6,7 @@ use smol_str::SmolStr;
 use crate::tokenising::{Token, TokenCluster};
 
 /// The source location, line and column number
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct LineCol(usize, usize);
 
 impl LineCol {
@@ -105,7 +105,7 @@ pub struct Parser {
     pub state: AstRoot,
 }
 
-impl<'a> Parser {
+impl<'a> Parser{
     pub fn new(tokens: collections::Vec<'a, TokenCluster>) -> Self {
         let token_iterator = tokens.to_vec().into_iter().peekable();
         Parser {
@@ -147,12 +147,27 @@ impl<'a> Parser {
     /// For initial execution, incrementally_build is equivalent to consume.
     /// This function will combine the state maintained in the parser and combine with the
     /// token parsed. This is similar to the Rowan (Red-Green Tree)
-    pub fn incrementally_build(&mut self) -> &mut Self {
-        let curr = &self.state;
+    pub fn incrementally_build(&'a mut self) -> &mut Self {
         if let Some(token) = self.token_iterator.peek() {
-            match (curr, token) {
-                (&AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole)), _) => self.consume(),
-                _ => unimplemented!("sorry unfinished")
+            match (self.state.clone(), token) {
+                (AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole)), _) => self.consume(),
+                (AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(ident))), (Token::EqualSign, _)) => {
+                    println!("what is next? {:?}", self.token_iterator.next());
+                    
+                    match self.consume().state.clone() {
+                        AstRoot::Expression(ExpressionNode::Value(val)) => {
+                            self.state = AstRoot::Statement(StatementNode::Assignment(
+                                AssignmentNode {
+                                    assignee: ValueNode::Identifier(ident),
+                                    expression: ExpressionNode::Value(val),
+                                }
+                            ));
+                            return self
+                        },
+                        _ => unimplemented!("la mer, unfinished.")
+                    }
+                }
+                (x, y) => {println!("what is x: {:?}, and what is y: {:?}", x, y); self}
             }
         } else {
             self

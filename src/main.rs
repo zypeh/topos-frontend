@@ -16,5 +16,6 @@ fn main() {
 
     println!("Token stream: {:?}", token_stream);
 
-    println!("AST will be: {:?}", Parser::new(token_stream).incrementally_build().state);
+    println!("AST will be: {:?}",
+        Parser::new(token_stream).incrementally_build().incrementally_build().incrementally_build().state)
 }
