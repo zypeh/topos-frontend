@@ -3,6 +3,9 @@ use bumpalo::{Bump, collections};
 mod tokenising;
 use tokenising::*;
 
+mod parsing;
+use parsing::*;
+
 fn main() {
     use self::*;
 

@@ -9,3 +9,5 @@ edition = "2018"
 logos = "0.12"
 smol_str = "0.1"
 bumpalo = { version = "3.6", features = ["collections"] }
+smallvec = "1.7"
+serde = "1.0"
