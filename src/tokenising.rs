@@ -2,7 +2,7 @@ use logos::{Logos, Lexer};
 use smol_str::SmolStr;
 
 #[repr(u16)]
-#[derive(Logos, Debug, PartialEq, Eq)]
+#[derive(Logos, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Token {
     #[token("use")]
     Using,

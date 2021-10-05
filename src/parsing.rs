@@ -1,15 +1,12 @@
 //! Parser, to parse off-side rule and layout sensitive parsing
 
-use bumpalo::{Bump, collections};
+use bumpalo::{collections};
 use smol_str::SmolStr;
 
-use crate::tokenising::{TokenCluster, Token};
-
-#[cfg(feature = "serde")]
-use serde::Serialize;
+use crate::tokenising::{Token, TokenCluster};
 
 /// The source location, line and column number
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LineCol(usize, usize);
 
 impl LineCol {
@@ -22,6 +19,18 @@ impl LineCol {
         self.1 = self.1 + len + 2;
         LineCol(self.0, self.1)
     }
+
+    pub fn newline_offset(&mut self) -> Self {
+        self.0 += 1;
+        self.1 = 0;
+        LineCol(self.0, self.1)
+    }
+
+    pub fn multiple_newline_offset(&mut self, n: usize) -> Self {
+        self.0 += n;
+        self.1 = 0;
+        LineCol(self.0, self.1)
+    }
 }
 
 /// The smallest unit of compilation process, aka a file
@@ -31,56 +40,123 @@ pub struct SourceNode<'a> {
     pub location: &'a mut LineCol,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IdentifierNode {
     pub text: SmolStr,
     pub location: LineCol,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StringNode {
     pub text: SmolStr,
     pub location: LineCol,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize))]
-#[derive(Debug)]
-pub enum AstNode {
+#[derive(Debug, Clone)]
+pub enum ValueNode {
     Identifier(IdentifierNode),
     String(StringNode),
-    // Function(FunctionNode<'a>),
+    /// This is for the incomplete tree.
+    Hole,
 }
 
-pub struct Parser;
+#[derive(Debug, Clone)]
+pub struct AssignmentNode {
+    pub assignee: ValueNode,
+    pub expression: ExpressionNode,
+}
+
+#[derive(Debug, Clone)]
+pub enum StatementNode {
+    Assignment(AssignmentNode),
+}
+
+#[derive(Debug, Clone)]
+pub struct BinaryOpsNode {
+    operand: IdentifierNode,
+    left: ValueNode,
+    right: ValueNode,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExpressionNode {
+    Value(ValueNode),
+    BinaryOps(BinaryOpsNode),
+}
+
+#[derive(Debug, Clone)]
+pub enum AstRoot {
+    Expression(ExpressionNode),
+    Statement(StatementNode),
+}
+
+impl Default for AstRoot {
+    fn default() -> Self {
+        AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Parser {
+    token_iterator: std::iter::Peekable<std::vec::IntoIter<TokenCluster>>,
+    iteration: usize,
+    line_col: LineCol,
+    pub state: AstRoot,
+}
 
 impl<'a> Parser {
-    pub fn parse(tokens: collections::Vec<'a, TokenCluster>) -> Vec<AstNode> {
-        let mut line_col = LineCol(1, 0);
-
-        let mut ast_stream = vec![];
-        for token in tokens.into_iter() {
-            match token {
-                // Check need_capture() function
-                (Token::Identifier, Some(val)) => {
-                    let ast = AstNode::Identifier(IdentifierNode{ text: val.clone(), location: line_col.add_offset(val.len()) });
-                    ast_stream.push(ast)
-                },
-                (Token::Identifier, None) => unreachable!("uncaptured identifier"),
-                (Token::Symbols, Some(val)) => {
-                    let ast = AstNode::Identifier(IdentifierNode{ text: val.clone(), location: line_col.add_offset(val.len()) });
-                    ast_stream.push(ast)
-                },
-                (Token::Symbols, None) => unreachable!("uncaptured symbols"),
-                (Token::String, Some(val)) => {
-                    let ast = AstNode::String(StringNode{ text: val.clone(), location: line_col.surrounding_offset(val.len()) });
-                    ast_stream.push(ast)
-                },
-                (Token::String, None) => unreachable!("uncaptured string"),
-                (Token::Whitespace, None) => { line_col.add_offset(1); },
-                (Token::Whitespace, Some(_)) => unreachable!("whitespace does not have any value captured"),
-                _ => unreachable!("a")
-            };
+    pub fn new(tokens: collections::Vec<'a, TokenCluster>) -> Self {
+        let token_iterator = tokens.to_vec().into_iter().peekable();
+        Parser {
+            token_iterator,
+            iteration: 0,
+            line_col: LineCol(1, 0),
+            state: Default::default()
         }
-        ast_stream
-    }  
+    }
+
+    pub fn consume(&mut self) -> &mut Self {
+        if let Some(token) = self.token_iterator.next() {
+            match token {
+                (Token::Identifier, Some(val)) | (Token::Symbols, Some(val)) => {
+                    self.state = AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(
+                        IdentifierNode {
+                            text: val.clone(),
+                            location: self.line_col.add_offset(val.len())
+                        })));
+                    self
+                },
+                (Token::String, Some(val)) => {
+                    self.state = AstRoot::Expression(ExpressionNode::Value(ValueNode::String(
+                        StringNode {
+                            text: val.clone(),
+                            location: self.line_col.surrounding_offset(val.len())
+                        })));
+                    self
+                },
+                (Token::Whitespace, None) => { self.line_col.add_offset(1); self },
+                (Token::Newline, None) => { self.line_col.newline_offset(); self },
+                _ => unimplemented!("sorry unimplemented")
+            }
+        } else {
+            self
+        }
+    }
+
+    /// For initial execution, incrementally_build is equivalent to consume.
+    /// This function will combine the state maintained in the parser and combine with the
+    /// token parsed. This is similar to the Rowan (Red-Green Tree)
+    pub fn incrementally_build(&mut self) -> &mut Self {
+        let curr = &self.state;
+        if let Some(token) = self.token_iterator.peek() {
+            match (curr, token) {
+                (&AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole)), _) => self.consume(),
+                _ => unimplemented!("sorry unfinished")
+            }
+        } else {
+            self
+        }
+    }
 }
+
