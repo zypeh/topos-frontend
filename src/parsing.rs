@@ -116,6 +116,7 @@ impl<'a> Parser{
         }
     }
 
+    /// This should be removed
     pub fn consume(&mut self) -> &mut Self {
         if let Some(token) = self.token_iterator.next() {
             match token {
@@ -151,27 +152,33 @@ impl<'a> Parser{
         if let Some(token) = self.token_iterator.peek() {
             match (self.state.clone(), token) {
                 (AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole)), _) => self.consume(),
-                (AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(ident))), (Token::EqualSign, _)) => {
-                    println!("what is next? {:?}", self.token_iterator.next());
-                    
-                    match self.consume().state.clone() {
-                        AstRoot::Expression(ExpressionNode::Value(val)) => {
-                            self.state = AstRoot::Statement(StatementNode::Assignment(
-                                AssignmentNode {
-                                    assignee: ValueNode::Identifier(ident),
-                                    expression: ExpressionNode::Value(val),
-                                }
-                            ));
-                            return self
-                        },
-                        _ => unimplemented!("la mer, unfinished.")
-                    }
-                }
+                (AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(ident))), (Token::EqualSign, _)) => self.handle_assignment(ident),
                 (x, y) => {println!("what is x: {:?}, and what is y: {:?}", x, y); self}
             }
         } else {
             self
         }
     }
+
+    fn handle_assignment(&'a mut self, ident: IdentifierNode) -> &mut Self {
+        self.token_iterator.next();
+        match &self.consume().state {
+            AstRoot::Expression(ExpressionNode::Value(val)) => {
+                self.state = AstRoot::Statement(StatementNode::Assignment(
+                    AssignmentNode {
+                        assignee: ValueNode::Identifier(ident),
+                        expression: ExpressionNode::Value(val.clone()),
+                    }
+                ));
+                return self
+            },
+            _ => unimplemented!("la mer, unfinished.")
+        }
+    }
+
+    fn handle_expression(&'a mut self) -> ExpressionNode {
+        ExpressionNode::Value(ValueNode::Hole)
+    }
+
 }
 
