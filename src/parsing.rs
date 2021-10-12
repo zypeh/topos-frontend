@@ -117,33 +117,33 @@ impl<'a> Parser{
     }
 
     /// This should be removed
-    pub fn consume(&mut self) -> &mut Self {
-        if let Some(token) = self.token_iterator.next() {
-            match token {
-                (Token::Identifier, Some(val)) | (Token::Symbols, Some(val)) => {
-                    self.state = AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(
-                        IdentifierNode {
-                            text: val.clone(),
-                            location: self.line_col.add_offset(val.len())
-                        })));
-                    self
-                },
-                (Token::String, Some(val)) => {
-                    self.state = AstRoot::Expression(ExpressionNode::Value(ValueNode::String(
-                        StringNode {
-                            text: val.clone(),
-                            location: self.line_col.surrounding_offset(val.len())
-                        })));
-                    self
-                },
-                (Token::Whitespace, None) => { self.line_col.add_offset(1); self },
-                (Token::Newline, None) => { self.line_col.newline_offset(); self },
-                _ => unimplemented!("sorry unimplemented")
-            }
-        } else {
-            self
-        }
-    }
+    // pub fn consume(&mut self) -> &mut Self {
+    //     if let Some(token) = self.token_iterator.next() {
+    //         match token {
+    //             (Token::Identifier, Some(val)) | (Token::Symbols, Some(val)) => {
+    //                 self.state = AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(
+    //                     IdentifierNode {
+    //                         text: val.clone(),
+    //                         location: self.line_col.add_offset(val.len())
+    //                     })));
+    //                 self
+    //             },
+    //             (Token::String, Some(val)) => {
+    //                 self.state = AstRoot::Expression(ExpressionNode::Value(ValueNode::String(
+    //                     StringNode {
+    //                         text: val.clone(),
+    //                         location: self.line_col.surrounding_offset(val.len())
+    //                     })));
+    //                 self
+    //             },
+    //             (Token::Whitespace, None) => { self.line_col.add_offset(1); self },
+    //             (Token::Newline, None) => { self.line_col.newline_offset(); self },
+    //             _ => unimplemented!("sorry unimplemented")
+    //         }
+    //     } else {
+    //         self
+    //     }
+    // }
 
     /// For initial execution, incrementally_build is equivalent to consume.
     /// This function will combine the state maintained in the parser and combine with the
@@ -151,13 +151,17 @@ impl<'a> Parser{
     pub fn incrementally_build(&'a mut self) -> &mut Self {
         if let Some(token) = self.token_iterator.peek() {
             match (self.state.clone(), token) {
-                (AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole)), _) => self.consume(),
+                (AstRoot::Expression(ExpressionNode::Value(ValueNode::Hole)), _) => { self.incrementally_build() },
                 (AstRoot::Expression(ExpressionNode::Value(ValueNode::Identifier(ident))), (Token::EqualSign, _)) => self.handle_assignment(ident),
                 (x, y) => {println!("what is x: {:?}, and what is y: {:?}", x, y); self}
             }
         } else {
             self
         }
+    }
+
+    fn consume(&'a mut self) -> &mut Self {
+        self
     }
 
     fn handle_assignment(&'a mut self, ident: IdentifierNode) -> &mut Self {
